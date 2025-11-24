@@ -32,7 +32,7 @@ input_data_dir = '../static_data/'
 output_data_dir = '../dynamic_data/'
 
 # location to store NetCDF files temporarily
-nc_dir = '/opt/soilmapnik/hourly_stageiv_precip_netcdf/'
+nc_dir = '../hourly_stageiv_precip_netcdf/'
 
 # NetCDF files' valid times include precip summed over the previous hour
 # so data collection should stop at 0500 UTC
@@ -68,7 +68,19 @@ if np.sum(nc_times >= nc_switch): # newer netCDF files can be aggregated
     # Change to migrate from python 2 to 3 (Ali's edit):
     # In Python 3 with recent netCDF4, MFDataset should be accessed as netCDF4.MFDataset
     import netCDF4
-    nc = netCDF4.MFDataset(np.array(nc_files)[nc_times >= nc_switch], aggdim='time')
+    import numpy as np  # make sure this is imported
+
+    # Ensure inputs are arrays
+    nc_times = np.array(nc_times)
+    nc_files = np.array(nc_files)
+
+    filtered_files = nc_files[nc_times >= nc_switch].tolist()
+
+    if len(filtered_files) == 0:
+        raise ValueError("No netCDF files meet the date condition — check nc_times and nc_switch")
+
+    nc = netCDF4.MFDataset(filtered_files, aggdim='time')
+    # nc = netCDF4.MFDataset(np.array(nc_files)[nc_times >= nc_switch], aggdim='time')
     precips.append(nc.variables['Total_precipitation'][:]) # already in [mm]
     nc.close()
 
@@ -126,4 +138,6 @@ for depth in sorted(api_params.keys()):
     
 # save precipitation to CSV
 out_dir = output_data_dir + 'precip/stageiv_api/'
+import os
+os.makedirs(out_dir, exist_ok=True)
 api_df.to_csv(out_dir + 'api_%s.csv' % (date.strftime('%Y%m%d')))

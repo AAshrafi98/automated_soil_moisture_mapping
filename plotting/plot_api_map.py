@@ -33,9 +33,9 @@ date_str = date.strftime('%Y%m%d') # filenames all end in yyyymmdd
 import pickle
 # Change to migrate from python 2 to 3 (edited by Ali):
 # In Python 3, pickle.load() requires binary mode 'rb' for reading.
-df = pickle.load(open(input_static_data_dir + 'grid/soil_moisture_grid_ssurgo_stageiv.pickle', 'rb'))
-m = pickle.load(open(map_cache_dir + 'oklahoma_basemap.pickle', 'rb'))
-p = pickle.load(open(map_cache_dir + 'map_params.pickle', 'rb'))
+df = pickle.load(open(input_static_data_dir + 'grid/soil_moisture_grid_ssurgo_stageiv_py3.pkl', 'rb'))
+m = pickle.load(open(map_cache_dir + 'oklahoma_basemap.pickle', 'rb'))###ANOTHER CHANGE NEEDED
+p = pickle.load(open(map_cache_dir + 'map_params.pickle', 'rb'))###ANOTHER CHANGE NEEDED
 
 ## load dynamic data sources
 from pandas import read_csv
@@ -72,7 +72,9 @@ pc_fname = map_cache_dir + '800m_pixels_%s.pickle' % (id_hash)
 if exists(pc_fname): # if that filename exists, load the file
     # Change to migrate from python 2 to 3 (edited by Ali):
     # In Python 3, pickle.load() requires binary mode 'rb' for reading.
-    pc = pickle.load(open(pc_fname, 'rb')) # patches object
+    with open(pc_fname, 'rb') as f:
+        pc = pickle.load(f)
+    # pc = pickle.load(open(pc_fname, 'rb')) # patches object
 
 else: # otherwise build a new patch collection
 
@@ -137,8 +139,18 @@ cb = fig.colorbar(pc, ax = cbax, fraction = 1, aspect = 8,
 (lrx, lry) = m(p['right'], p['bottom'])
 ax.text(llx, lly, '%d-cm %s' % (depth, 'Antecedent Precipitation Index'),
         size = 20, family = 'sans-serif', ha = 'left', va = 'bottom')
-ax.text(lrx, lry, 'valid %s CST' % (date.strftime('%-I:%M %p %B %-d, %Y')),
-        size = 11, family = 'sans-serif', ha = 'right', va = 'bottom')
+# ax.text(lrx, lry, 'valid %s CST' % (date.strftime('%-I:%M %p %B %-d, %Y')),
+#         size = 11, family = 'sans-serif', ha = 'right', va = 'bottom')
+time_str = date.strftime('%I:%M %p').lstrip('0')        # hour without leading zero
+day_str = date.strftime('%d').lstrip('0')               # day without leading zero
+month_year_str = date.strftime('%B %Y')                 # month and year
+
+# Final label
+label = 'valid %s %s, %s CST' % (time_str, month_year_str, day_str)
+
+# Plot it
+ax.text(lrx, lry, label, size=11, family='sans-serif', ha='right', va='bottom')
+
 
 # Save the map
 fig.savefig(output_dir + 'api_%02dcm_%s.png' % (depth, date_in), dpi=dpi)
