@@ -22,16 +22,20 @@ output_dir = '../output/'
 import pickle
 
 input_static_data_dir = '../static_data/'
+# Change to migrate from python 2 to 3 (edited by Ali):
+# Python 3 requires binary mode ('rb') when opening files for pickle.load(). 
 grid_df = pickle.load(open(input_static_data_dir + 
-                           'grid/soil_moisture_grid_ssurgo_stageiv.pickle'))
+                           'grid/soil_moisture_grid_ssurgo_stageiv.pickle', 'rb'))
 soil_df = pickle.load(open(input_static_data_dir + 
-                              'soil_properties/ssurgo/ssurgo_soil_properties_by_mukey.pickle'))
+                              'soil_properties/ssurgo/ssurgo_soil_properties_by_mukey.pickle', 'rb'))
 
 # load dynamic data sources
 input_dynamic_data_dir = '../dynamic_data/'
+# Change to migrate from python 2 to 3 (edited by Ali):
+# Python 3 requires binary mode ('rb') when opening files for pickle.load(). 
 
 model = pickle.load(open(input_dynamic_data_dir + 
-                         'regression/model/model_%s.pickle' % (date_str)))
+                         'regression/model/model_%s.pickle' % (date_str), 'rb'))
 model = model[depth] # choose only the model for the current depth
 
 api_file = input_dynamic_data_dir + 'precip/stageiv_api/api_%s.csv' % (date_str)

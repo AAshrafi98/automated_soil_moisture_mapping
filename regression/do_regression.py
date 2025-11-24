@@ -14,12 +14,15 @@ output_data_dir = '../dynamic_data/'
 date_str = date.strftime('%Y%m%d') # filenames all end in yyyymmdd
 
 # load static (pickled) data sources
-import cPickle as pickle
-
+# Change to migrate from python 2 to 3 (edited by Ali):
+# cPickle was merged into pickle in Python 3.
+import pickle
+# Change to migrate from python 2 to 3 (edited by Ali):
+# In Python 3, pickle.load() requires binary mode 'rb' for reading.
 meso_df = pickle.load(open(input_static_data_dir + 
-                           'mesonet/mesonet_geoinfo_ssurgo_stageiv.pickle'))
+                           'mesonet/mesonet_geoinfo_ssurgo_stageiv.pickle', 'rb'))
 soil_df = pickle.load(open(input_static_data_dir + 
-                              'soil_properties/ssurgo/ssurgo_soil_properties_by_mukey.pickle'))
+                              'soil_properties/ssurgo/ssurgo_soil_properties_by_mukey.pickle', 'rb'))
 
 # load dynamic (CSV) data sources
 from pandas import read_csv
@@ -66,5 +69,7 @@ df[output_vars].to_csv(output_data_dir +
                        'regression/residual/resid_%s.csv' % (date_str))
 
 # save the model results
+# Change to migrate from python 2 to 3 (edited by Ali):
+# In Python 3, pickle.dump() requires binary mode 'wb' for writing.
 pickle.dump(results, open(output_data_dir + 
-                          'regression/model/model_%s.pickle' % (date_str), 'w'))
+                          'regression/model/model_%s.pickle' % (date_str), 'wb'))

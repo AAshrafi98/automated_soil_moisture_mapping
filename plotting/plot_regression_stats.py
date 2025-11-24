@@ -6,12 +6,15 @@ from datetime import datetime
 
 date_in = argv[1]
 date = datetime.strptime(date_in, '%Y-%m-%d') # convert to a datetime object
-date_str = date_str = date.strftime('%Y%m%d') # filenames all end in yyyymmdd
+# Change to migrate from python 2 to 3 (edited by Ali):
+# duplicate date_str in the next line is unnecessary
+date_str = date.strftime('%Y%m%d') # filenames all end in yyyymmdd
 depth = int(argv[2])
 
 output_dir = '../output/diagnostics/regression/'
-
-import cPickle as pickle
+# Change to migrate from python 2 to 3 (edited by Ali):
+# cPickle was merged into pickle in Python 3.
+import pickle
 from pandas import read_csv, concat
 
 input_model_dir = '../dynamic_data/regression/model/'
@@ -19,8 +22,9 @@ model_fname = 'model_%s.pickle' % (date_str)
 
 input_sm_dir = '../dynamic_data/soil_moisture/06Z/'
 sm_fname = 'sm_data_%s.csv' % (date_str)
-
-model = pickle.load(open(input_model_dir + model_fname))[depth]
+# Change to migrate from python 2 to 3 (edited by Ali):
+# In Python 3, pickle.load() requires binary mode 'rb' for reading.
+model = pickle.load(open(input_model_dir + model_fname, 'rb'))[depth]
 sm = read_csv(input_sm_dir + sm_fname, header=[0,1], index_col=0)[('vwc', '%d' % (depth))]
 
 df = concat((sm, model.fittedvalues), axis=1)
