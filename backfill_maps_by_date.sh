@@ -21,7 +21,7 @@ days=$2
 
 # set soil moisture variables (may be set on commandline in future)
 mapvar="vwc"
-depths="5 25 60"
+depths="60"
 
 # change into directory
 cd "$basedir"

@@ -1,9 +1,10 @@
 from sys import argv
 from datetime import datetime
+import numpy as np
 
 date_in = argv[1] # current date passed in as yyyy-mm-dd
 date = datetime.strptime(date_in, '%Y-%m-%d') # convert to a datetime object
-depths = [5, 25, 60]
+depths = [10, 30, 60, 90] # depths for API
 
 ## Data
 
@@ -33,18 +34,115 @@ sm_file = input_dynamic_data_dir + 'soil_moisture/06Z/sm_data_%s.csv' % (date_st
 api_df = read_csv(api_file, index_col=[0,1])
 sm_df = read_csv(sm_file, header=[0,1], index_col=0)
 
+# # give the soil, api, and sm DataFrame column names
+# # that can be used in OLS formulae
+# print(soil_df.head())
+
+# # soil_df.columns = ['%s_%d' % (col) for col in soil_df.columns.values]
+# soil_df.columns = [
+#     f"{col.split('.')[0]}_{col.split('.')[1] if '.' in col else 0}"
+#     for col in soil_df.columns
+# ]
+# replace_map = {"0": "10", "1": "30", "2": "60", "3": "90"}
+
+# new_cols = []
+# for col in soil_df.columns:
+#     base, suffix = col.split("_")
+#     new_cols.append(f"{base}_{replace_map.get(suffix, suffix)}")
+
+# soil_df.columns = new_cols
+# api_df.columns = ['api_%s' % (col) for col in api_df.columns.values]
+# sm_df.columns = ['%s_%s' % (col) for col in sm_df.columns.values]
+# print(soil_df.columns)
+# # combine everything into one DataFrame
+# from pandas import to_numeric
+# df = meso_df.join(soil_df, on='mukey')\
+#             .join(api_df, on=['s4x', 's4y'])\
+#             .join(sm_df)\
+#             .apply(to_numeric)
+
+# print(df.head())
 # give the soil, api, and sm DataFrame column names
 # that can be used in OLS formulae
-soil_df.columns = ['%s_%d' % (col) for col in soil_df.columns.values]
-api_df.columns = ['api_%s' % (col) for col in api_df.columns.values]
-sm_df.columns = ['%s_%s' % (col) for col in sm_df.columns.values]
+import pandas as pd
+from pandas import to_numeric
+
+print(soil_df.head())
+
+# --------------------------------------------------
+# Fix soil_df: first column is the mukey, not the index
+# --------------------------------------------------
+
+soil_df = soil_df.copy()
+
+# The first column appears to contain the mukey values
+soil_key_col = soil_df.columns[0]
+soil_df = soil_df.rename(columns={soil_key_col: "mukey"})
+
+# Remove the first metadata/depth row if mukey is missing
+soil_df = soil_df[soil_df["mukey"].notna()].copy()
+
+# Rename soil-property columns to depth-specific names
+# Example:
+# sand   -> sand_10
+# sand.1 -> sand_30
+# sand.2 -> sand_60
+# sand.3 -> sand_90
+replace_map = {"0": "10", "1": "30", "2": "60", "3": "90"}
+
+new_cols = []
+for col in soil_df.columns:
+    col = str(col)
+
+    if col == "mukey":
+        new_cols.append("mukey")
+    else:
+        if "." in col:
+            base, suffix = col.split(".", 1)
+        else:
+            base, suffix = col, "0"
+
+        depth = replace_map.get(suffix, suffix)
+        new_cols.append(f"{base}_{depth}")
+
+soil_df.columns = new_cols
+
+# Make mukey type consistent between meso_df and soil_df
+soil_df["mukey"] = pd.to_numeric(soil_df["mukey"], errors="coerce").astype("Int64")
+meso_df["mukey"] = pd.to_numeric(meso_df["mukey"], errors="coerce").astype("Int64")
+
+# Remove bad or duplicate mukeys in soil table
+soil_df = soil_df.dropna(subset=["mukey"])
+soil_df = soil_df.drop_duplicates(subset=["mukey"])
+
+# Use mukey as soil_df index so meso_df.join(..., on="mukey") works correctly
+soil_df = soil_df.set_index("mukey")
+
+print("\nCorrected soil_df columns:")
+print(soil_df.columns)
+
+print("\nSoil_df index sample:")
+print(soil_df.index[:10])
+
+# Rename API and soil moisture columns
+api_df.columns = [f"api_{col}" for col in api_df.columns.values]
+sm_df.columns = [f"{col[0]}_{col[1]}" for col in sm_df.columns.values]
 
 # combine everything into one DataFrame
-from pandas import to_numeric
-df = meso_df.join(soil_df, on='mukey')\
-            .join(api_df, on=['s4x', 's4y'])\
-            .join(sm_df)\
+df = meso_df.join(soil_df, on="mukey") \
+            .join(api_df, on=["s4x", "s4y"]) \
+            .join(sm_df) \
             .apply(to_numeric)
+
+print("\nCombined dataframe preview:")
+print(df.head())
+
+print("\nCheck soil variables after merge:")
+for d in [10, 30, 60, 90]:
+    print(f"sand_{d} non-NaN:", df[f"sand_{d}"].notna().sum())
+
+
+
 
 
 ## Calculation
@@ -61,19 +159,43 @@ def run_regressions(df, depths, _date_str, _output_data_dir):
 
     for d in depths:
         formula = f'vwc_{d} ~ sand_{d} + api_{d}'
+        print("\n==============================")
+        print("Depth:", d)
+        print("Formula:", formula)
+
+        # Get variable names used in the formula
+        target = formula.split("~")[0].strip()
+        predictors = [x.strip() for x in formula.split("~")[1].split("+")]
+        model_cols = [target] + predictors
+
+        print("Model columns:", model_cols)
+
+        missing_cols = [c for c in model_cols if c not in df.columns]
+        print("Missing columns:", missing_cols)
+
+        if not missing_cols:
+            temp = df[model_cols].replace([np.inf, -np.inf], np.nan)
+            print("Original rows:", temp.shape[0])
+            print("Rows after dropna:", temp.dropna().shape[0])
+            print("NaN count:")
+            print(temp.isna().sum())
+
+            if temp.dropna().shape[0] == 0:
+                print("SKIPPING depth", d, "because no valid rows are available.")
+                continue
         results[d] = smf.ols(formula, data=df).fit()
 
         df[f'fit_{d}'] = results[d].fittedvalues
         df[f'resid_{d}'] = results[d].resid
 
-    output_vars = ['x', 'y', 'resid_5', 'resid_25', 'resid_60']
+    output_vars = ['x', 'y', 'resid_10', 'resid_30', 'resid_60', 'resid_90']
     df[output_vars].to_csv(f'{_output_data_dir}regression/residual/resid_{date_str}.csv')
 
     with open(f'{_output_data_dir}regression/model/model_{_date_str}.pkl', 'wb') as f:
         pickle.dump(results, f)
 
 # Example usage
-run_regressions(df, depths=[5, 25, 60], _date_str=date_str, _output_data_dir = output_data_dir)
+run_regressions(df, depths=[10, 30, 60, 90], _date_str=date_str, _output_data_dir = output_data_dir)
 
 
 # do the fitting for each depth

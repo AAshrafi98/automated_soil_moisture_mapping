@@ -8,9 +8,10 @@ from pandas import DataFrame
 from os.path import isfile
 
 api_params = { # parameters for the Antecedent Precipitation Index
-    0o5: {'days': 24, 'k': 1.025},
-    25: {'days': 24, 'k': 1.006},
-    60: {'days': 22, 'k': 0.993}
+    10: {'days': 24, 'k': 1.025},
+    30: {'days': 24, 'k': 1.006},
+    60: {'days': 22, 'k': 0.993},
+    90: {'days': 20, 'k': 0.985} # Values are not correct!
 }
 nd = 24 # number of days to download data for (max of API days params)
 
@@ -114,7 +115,7 @@ precip = np.concatenate(precips) # combine new and old (works even if len(precip
 
 # accumulate daily precip
 daily_precip = precip.reshape((24, nd, 159, 335)).sum(axis=0)
-
+print (daily_precip[0].shape)
 api_df = []
 # calculate the antecedent precipitation indicies
 for depth in sorted(api_params.keys()):

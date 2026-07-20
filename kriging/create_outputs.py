@@ -61,18 +61,95 @@ api_df = read_csv(api_file, index_col=[0,1])
 resid_df = read_csv(resid_file, index_col=[0,1])
 print(api_df.head())
 print(resid_df.head())
-# give the soil, api, and sm DataFrame column names
-# that match the model results
-soil_df.columns = ['%s_%d' % (col) for col in soil_df.columns.values]
-api_df.columns = ['api_%s' % (col) for col in api_df.columns.values]
+# # give the soil, api, and sm DataFrame column names
+# # that match the model results
+# soil_df.columns = ['%s_%d' % (col) for col in soil_df.columns.values]
+# api_df.columns = ['api_%s' % (col) for col in api_df.columns.values]
 
-# combine and clean data
-df = grid_df.join(soil_df['sand_%d' % (depth)], on='mukey')\
-            .join(api_df['api_%d' % (depth)], on=['s4x', 's4y'])\
-            .join(resid_df, on=['x', 'y'])
-df = df.sort_index() # sort by (x, y)
-df = df.reset_index() # put (x, y) back into the columns
-df = df.dropna() # drop NaNs
+# # combine and clean data
+# df = grid_df.join(soil_df['sand_%d' % (depth)], on='mukey')\
+#             .join(api_df['api_%d' % (depth)], on=['s4x', 's4y'])\
+#             .join(resid_df, on=['x', 'y'])
+# df = df.sort_index() # sort by (x, y)
+# df = df.reset_index() # put (x, y) back into the columns
+# df = df.dropna() # drop NaNs
+# give the soil and api DataFrame column names
+# that match the model results
+import pandas as pd
+import numpy as np
+
+# --------------------------------------------------
+# Fix soil_df: first column is mukey, not the index
+# --------------------------------------------------
+
+soil_df = soil_df.copy()
+
+soil_key_col = soil_df.columns[0]
+soil_df = soil_df.rename(columns={soil_key_col: "mukey"})
+
+# Remove metadata/depth row where mukey is missing
+soil_df = soil_df[soil_df["mukey"].notna()].copy()
+
+replace_map = {"0": "10", "1": "30", "2": "60", "3": "90"}
+
+new_cols = []
+for col in soil_df.columns:
+    col = str(col)
+
+    if col == "mukey":
+        new_cols.append("mukey")
+    else:
+        if "." in col:
+            base, suffix = col.split(".", 1)
+        else:
+            base, suffix = col, "0"
+
+        depth_name = replace_map.get(suffix, suffix)
+        new_cols.append(f"{base}_{depth_name}")
+
+soil_df.columns = new_cols
+
+# Make mukey type consistent
+soil_df["mukey"] = pd.to_numeric(soil_df["mukey"], errors="coerce").astype("Int64")
+grid_df["mukey"] = pd.to_numeric(grid_df["mukey"], errors="coerce").astype("Int64")
+
+soil_df = soil_df.dropna(subset=["mukey"])
+soil_df = soil_df.drop_duplicates(subset=["mukey"])
+soil_df = soil_df.set_index("mukey")
+
+# Rename API columns
+api_df.columns = [f"api_{col}" for col in api_df.columns.values]
+
+print("\nCreate outputs check:")
+print(f"sand_{depth} exists:", f"sand_{depth}" in soil_df.columns)
+print(f"sand_{depth} non-NaN in soil_df:", soil_df[f"sand_{depth}"].notna().sum())
+
+# --------------------------------------------------
+# Combine grid, soil, API, and kriged residual
+# --------------------------------------------------
+
+df = grid_df.join(soil_df[f"sand_{depth}"], on="mukey") \
+            .join(api_df[f"api_{depth}"], on=["s4x", "s4y"]) \
+            .join(resid_df, on=["x", "y"])
+
+print("Rows before dropna:", df.shape[0])
+print("NaN count before dropna:")
+print(df[[f"sand_{depth}", f"api_{depth}", "Z", "Zvar"]].isna().sum())
+
+df = df.sort_index()
+df = df.reset_index()
+df = df.dropna()
+
+print("Rows after dropna:", df.shape[0])
+
+if df.shape[0] == 0:
+    raise RuntimeError(
+        f"create_outputs.py produced zero rows for {depth} cm. "
+        f"Check sand_{depth}, api_{depth}, and kriged residual join."
+    )
+
+
+
 
 # Predict values from model results
 df[map_var] = ( (model.params * df).sum(axis=1) # sum the model params * values

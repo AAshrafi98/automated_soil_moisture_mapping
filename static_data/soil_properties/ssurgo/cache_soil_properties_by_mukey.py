@@ -1,17 +1,19 @@
 dbname = 'soilmapnik'
 
 # set the soil layers and depths
-depths = [5, 25, 60] # [cm]
-layers = [(0, 10), (10, 40), (40, 80)] # [cm], which matches SSURGO
+depths = [10, 30, 60, 90] # [cm]
+layers = [(0, 20), (20, 50), (50, 75), (75, 100)] # [cm], which matches SSURGO
 
 # import grid and get distinct mukeys
 import pickle
-df = pickle.load(open('../../grid/soil_moisture_grid_ssurgo_stageiv.pickle'))
+df = pickle.load(open('../../grid/soil_moisture_grid_ssurgo_stageiv_py3.pkl', 'rb'))
 mukeys = df['mukey'].dropna().astype(int).unique()
 
 # connect to the database
 import psycopg2
-conn = psycopg2.connect('dbname=%s' % (dbname))
+# PGUSER="postgres"
+# PGPASSWORD="Ali292Ali292"
+conn = psycopg2.connect('dbname=%s' % (dbname), user='postgres', password='Ali292Ali292')
 cur = conn.cursor()
 
 # loop over mukeys and compute soil textures for each layer
@@ -26,7 +28,8 @@ df = DataFrame(columns = columns, index=index)
 
 columns = ['cokey', 'hztop', 'hzbot'] + columns
 for i,mukey in enumerate(mukeys):
-    print '%8d/%8d (%.2f%%)' % (i, len(mukeys), float(i)/len(mukeys)*100)
+    if i > 50 : break
+    print ('%8d/%8d (%.2f%%)' % (i, len(mukeys), float(i)/len(mukeys)*100))
 
     # grab the cokeys and relative fractions from components table
     query = '''
@@ -40,8 +43,9 @@ for i,mukey in enumerate(mukeys):
 
     # check result
     if result:
-        cokeys = list(zip(*result)[0])
-        comppcts = list(zip(*result)[1])
+        zipped = list(zip(*result))
+        cokeys = list(zipped[0])
+        comppcts = list(zipped[1])
     else:
         continue
 
@@ -64,7 +68,7 @@ for i,mukey in enumerate(mukeys):
             FROM chorizon 
             WHERE cokey = %s AND NOT (%s > hzdepb_r OR %s < hzdept_r);
             '''
-
+            # print( query % (cokey, top, bottom) )  # Debug: print the query being executed
             cur.execute(query, (cokey, top, bottom))
             result = cur.fetchall()
             
@@ -121,4 +125,5 @@ for i,mukey in enumerate(mukeys):
 
 # set depths as a column index and save DataFrame
 df = df.unstack()
-df.to_pickle('ssurgo_soil_properties_by_mukey.pickle')
+print(df.head())
+# df.to_csv('ssurgo_soil_properties_by_mukeytest.csv')
