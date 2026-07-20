@@ -1,4 +1,2 @@
-virtual env is VENV
-conda activate VENV
-
-#comment
+virtual env is * mapping_env *
+conda activate mapping_env
