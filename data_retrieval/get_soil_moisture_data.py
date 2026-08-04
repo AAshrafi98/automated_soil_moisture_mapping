@@ -160,8 +160,8 @@ if __name__ == "__main__":
         df = fetch_once(dt)
     if df is None:
         raise SystemExit(f"No data returned near {dt0}.")
-    df.replace({np.nan: 0}, inplace=True)
-    print(df.head())
+    #df.replace({np.nan: 0}, inplace=True)
+    # We should not replace NaN with 0 because it can misrepresent missing data as actual zero values.
     
 # set the data directories
 input_data_dir = '../static_data/'
